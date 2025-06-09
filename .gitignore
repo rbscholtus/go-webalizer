@@ -1,0 +1,23 @@
+# Data files
+/*.log
+
+# Binaries
+*.exe
+*.out
+bin/
+
+# Dependencies
+vendor/
+
+# Test binary
+*.test
+
+# IDE specific files
+.idea/
+*.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS specific files
+.DS_Store
+*.swp

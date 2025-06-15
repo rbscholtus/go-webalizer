@@ -15,28 +15,47 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// Stats holds various aggregated metrics from parsed log entries.
+// Stats holds aggregated metrics parsed from web server log files.
 type Stats struct {
-	hits           int                  // Total HTTP requests (lines parsed successfully)
-	files          int                  // Number of successful responses (e.g., HTTP 200)
-	pages          int                  // Number of HTML/doc-like page accesses
-	siteNames      map[string]int       // Requests per IP/site
-	lastVisit      map[string]time.Time // Last request time per IP/site
-	visits         int                  // Distinct visits (timeout-based session)
-	bytes          int                  // Total bytes sent by the server
-	hitsByMethod   map[string]int       // Count by HTTP method (GET, POST, etc.)
-	hitsByProtocol map[string]int       // Count by HTTP protocol version
-	hitsByRespCode map[string]int       // Count by HTTP response code
+	// Hits is the total number of requests (including all file types).
+	Hits int
+
+	// Files is the count of successful file responses (e.g., images, scripts, documents).
+	Files int
+
+	// Pages is the number of page views (based on HTML extensions or predefined URLs).
+	Pages int
+
+	// SiteNames maps each remote address (IP or host) to the number of requests it made.
+	SiteNames map[string]int
+
+	// LastVisit stores the most recent timestamp seen for each site.
+	LastVisit map[string]time.Time
+
+	// Visits is the number of unique visits based on IP and timeout threshold.
+	Visits int
+
+	// Bytes is the total number of bytes sent by the server.
+	Bytes int
+
+	// HitsByMethod counts requests grouped by HTTP method (GET, POST, etc.).
+	HitsByMethod map[string]int
+
+	// HitsByProtocol counts requests grouped by HTTP protocol version.
+	HitsByProtocol map[string]int
+
+	// HitsByRespCode counts requests grouped by HTTP response status code.
+	HitsByRespCode map[string]int
 }
 
 // NewStats initializes and returns a new Stats object.
 func NewStats() *Stats {
 	stats := Stats{}
-	stats.siteNames = make(map[string]int)
-	stats.lastVisit = make(map[string]time.Time)
-	stats.hitsByMethod = make(map[string]int)
-	stats.hitsByProtocol = make(map[string]int)
-	stats.hitsByRespCode = make(map[string]int)
+	stats.SiteNames = make(map[string]int)
+	stats.LastVisit = make(map[string]time.Time)
+	stats.HitsByMethod = make(map[string]int)
+	stats.HitsByProtocol = make(map[string]int)
+	stats.HitsByRespCode = make(map[string]int)
 	return &stats
 }
 
@@ -49,21 +68,21 @@ func (s *Stats) String() string {
 		"  Sites:  %d\n"+
 		"  Visits: %d\n"+
 		"  Bytes:  %d bytes\n",
-		s.hits, s.files, s.pages, len(s.siteNames), s.visits, s.bytes)
+		s.Hits, s.Files, s.Pages, len(s.SiteNames), s.Visits, s.Bytes)
 
 	output += fmt.Sprintln("  Hits by HTTP method")
-	for _, method := range GetSortedKeys(&s.hitsByMethod) {
-		output += fmt.Sprintf("    %-7s: %d\n", method, s.hitsByMethod[method])
+	for _, method := range GetSortedKeys(&s.HitsByMethod) {
+		output += fmt.Sprintf("    %-7s: %d\n", method, s.HitsByMethod[method])
 	}
 
-	output += fmt.Sprintln("  Hits by HTTP protocol")
-	for _, protocol := range GetSortedKeys(&s.hitsByProtocol) {
-		output += fmt.Sprintf("    %-8s: %d\n", protocol, s.hitsByProtocol[protocol])
+	output += fmt.Sprintln("  Hits by HTTP protocol version")
+	for _, protocol := range GetSortedKeys(&s.HitsByProtocol) {
+		output += fmt.Sprintf("    %-8s: %d\n", protocol, s.HitsByProtocol[protocol])
 	}
 
 	output += fmt.Sprintln("  Hits by HTTP response code")
-	for _, retCode := range GetSortedKeys(&s.hitsByRespCode) {
-		output += fmt.Sprintf("    %s: %d\n", retCode, s.hitsByRespCode[retCode])
+	for _, retCode := range GetSortedKeys(&s.HitsByRespCode) {
+		output += fmt.Sprintf("    %s: %d\n", retCode, s.HitsByRespCode[retCode])
 	}
 
 	return output
@@ -126,28 +145,28 @@ func processLog(fileName string) {
 		}
 
 		// Every successfully parsed line is a hit
-		stats.hits++
+		stats.Hits++
 
 		// Increment files for successful responses (HTTP 200)
 		if match[8] == "200" {
-			stats.files++
+			stats.Files++
 		}
 
 		// Classify as a "page" by extension
 		if re2.FindStringIndex(match[6]) != nil {
-			stats.pages++
+			stats.Pages++
 		} else {
 			// Or match predefined page-like URL patterns
 			for _, re := range compiledRegexes {
 				if re.FindStringIndex(match[6]) != nil {
-					stats.pages++
+					stats.Pages++
 				}
 			}
 		}
 
 		// Count visits by IP and track last access time
 		ip := match[1]
-		stats.siteNames[ip]++
+		stats.SiteNames[ip]++
 
 		// Parse timestamp from log
 		t, err := time.Parse(layout, match[4])
@@ -157,25 +176,25 @@ func processLog(fileName string) {
 		}
 
 		// Determine if this is a new "visit" based on timeout
-		if t.Sub(stats.lastVisit[ip]) > visitTimeout {
-			stats.visits++
+		if t.Sub(stats.LastVisit[ip]) > visitTimeout {
+			stats.Visits++
 		}
-		stats.lastVisit[ip] = t
+		stats.LastVisit[ip] = t
 
 		// Track total bytes sent (if numeric)
 		bytes, err := strconv.Atoi(match[9])
 		if err == nil {
-			stats.bytes += bytes
+			stats.Bytes += bytes
 		}
 
 		// Track method, protocol, and status code
-		stats.hitsByMethod[match[5]]++
+		stats.HitsByMethod[match[5]]++
 		if match[7] == "" {
-			stats.hitsByProtocol["Unknown"]++
+			stats.HitsByProtocol["Unknown"]++
 		} else {
-			stats.hitsByProtocol[match[7]]++
+			stats.HitsByProtocol[match[7]]++
 		}
-		stats.hitsByRespCode[match[8]]++
+		stats.HitsByRespCode[match[8]]++
 	}
 
 	// Report any errors from scanning

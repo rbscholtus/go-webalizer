@@ -24,3 +24,5 @@ vendor/
 main
 output.parquet
 *.go.bak
+goAnalyzer
+out.txt

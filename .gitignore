@@ -22,3 +22,5 @@ vendor/
 # My files
 *.log
 main
+output.parquet
+*.go.bak

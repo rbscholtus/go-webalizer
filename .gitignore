@@ -20,9 +20,9 @@ vendor/
 *.swp
 
 # My files
-*.log
-main
-output.parquet
+/*.log
+/main
+/output.parquet
 *.go.bak
-goAnalyzer
-out.txt
+/goAnalyzer
+/out.txt

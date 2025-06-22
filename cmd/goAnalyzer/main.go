@@ -197,13 +197,12 @@ func processLog(fileName string) {
 	for scanner.Scan() {
 		// scan and parse a line
 		lineNr++
-		_, err := line.Extract(scanner.Bytes())
-		if err != nil {
+		ok, err := line.Extract(scanner.Bytes())
+		if !ok {
 			fmt.Println("Invalid line", lineNr, ":", err)
+			// godump.Dump(line)
 			continue
 		}
-
-		godump.Dump(line)
 
 		// If Visits was incremented for this log line
 		incVisits := false

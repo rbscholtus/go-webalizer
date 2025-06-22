@@ -32,7 +32,7 @@ type LogEntry struct {
 func (p *LogEntry) Extract(line []byte) (bool, error) {
 	p.Rest = line
 	var err error
-	var pos int
+	var pos, posQ int
 	var tmp []byte
 	var tmpUint uint64
 
@@ -122,11 +122,15 @@ func (p *LogEntry) Extract(line []byte) (bool, error) {
 		return false, fmt.Errorf("parsing `%s` into field Method(string): %s", string(tmp), err)
 	}
 
-	// Take until ' ' as URLPath($string)
+	// Take until ' ' or '"' as URLPath($string)
+	posQ = bytes.IndexByte(p.Rest, '"')
 	pos = bytes.IndexByte(p.Rest, ' ')
-	if pos >= 0 {
+	if pos > 0 && pos < posQ {
 		tmp = p.Rest[:pos]
 		p.Rest = p.Rest[pos+1:]
+	} else if posQ > 0 && posQ < pos {
+		tmp = p.Rest[:posQ]
+		p.Rest = p.Rest[posQ:]
 	} else {
 		return false, nil
 	}
@@ -192,7 +196,9 @@ func (p *LogEntry) Extract(line []byte) (bool, error) {
 	if len(p.Rest) >= 1 && p.Rest[0] == '"' {
 		p.Rest = p.Rest[1:]
 	} else {
-		return false, nil
+		p.Referrer = ""
+		p.UserAgent = ""
+		return true, nil
 	}
 
 	// Take until '"' as Referrer($string)

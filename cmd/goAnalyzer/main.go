@@ -25,19 +25,52 @@ const visitTimeout = 600 * time.Second
 // extensions of files that resemble a "page"
 const fileExts = `\.(htm|html|php|php3|php4|asp|aspx|jsp|js|py|shtml|xhtml|cgi|pl|rb|erb|ejs|phtml|dhtml|cfm|do|action|axd|ashx|asmx|svc|faces|jspx|xsp|md|markdown|liquid|mustache|hbs|wsdl|wadl|swagger)`
 
+// unmarshalIP converts a IP/DNS string from a log entry.
+func (p *LogEntry) unmarshalIP(value []byte) (string, error) {
+	return string(value), nil
+}
+
+// unmarshalTimestamp parses a timestamp from a log entry.
+func (p *LogEntry) unmarshalTimestamp(value []byte) (time.Time, error) {
+	// Parse timestamp using the predefined date format
+	return time.Parse(dateFormat, string(value))
+}
+
+// unmarshalMethod converts a Method string from a log entry.
+func (p *LogEntry) unmarshalMethod(value []byte) (string, error) {
+	return string(value), nil
+}
+
+// unmarshalURLPath unescapes a URL path from a log entry.
 func (p *LogEntry) unmarshalURLPath(value []byte) (string, error) {
 	unescapedPath, err := url.PathUnescape(string(value))
 	if err != nil {
-		return "", nil
+		return string(value), err
 	}
 	return unescapedPath, nil
 }
 
+// unmarshalSize parses the size of a response from a log entry.
 func (p *LogEntry) unmarshalSize(value []byte) (uint64, error) {
+	// Check for a dash (-) indicating an unknown or missing size
 	if string(value) == "-" {
 		return 0, nil
 	}
 	return strconv.ParseUint(string(value), 10, 64)
+}
+
+// unmarshalReferrer unescapes a referrer URL from a log entry.
+func (p *LogEntry) unmarshalReferrer(value []byte) (string, error) {
+	unescapedRef, err := url.PathUnescape(string(value))
+	if err != nil {
+		return string(value), err
+	}
+	return unescapedRef, nil
+}
+
+// unmarshalUserAgent converts a UserAgent string from a log entry.
+func (p *LogEntry) unmarshalUserAgent(value []byte) (string, error) {
+	return string(value), nil
 }
 
 // Stats holds aggregated metrics parsed from web server log files.
@@ -164,24 +197,18 @@ func processLog(fileName string) {
 	for scanner.Scan() {
 		// scan and parse a line
 		lineNr++
-		ok, err := line.Extract(scanner.Bytes())
-		if !ok {
+		_, err := line.Extract(scanner.Bytes())
+		if err != nil {
 			fmt.Println("Invalid line", lineNr, ":", err)
-			// godump.Dump(line)
 			continue
 		}
+
+		godump.Dump(line)
 
 		// If Visits was incremented for this log line
 		incVisits := false
 
-		// Parse timestamp
-		ts, err := time.Parse(dateFormat, string(line.Timestamp))
-		if err != nil {
-			fmt.Println("Error parsing time:", err)
-			return
-		}
-
-		date := ts.Format("2006-01-02")
+		date := line.Timestamp.Format("2006-01-02")
 
 		// HITS: Every successfully parsed line is a hit
 		stats.Hits[date]++
@@ -207,29 +234,27 @@ func processLog(fileName string) {
 		// BYTES: Track total bytes sent (if numeric)
 		stats.Bytes[date] += line.Size
 
-		ip := string(line.IP)
-
 		// SITES: Count visits by IP and track last access time
 		if _, ok := stats.Sites[date]; !ok {
 			stats.Sites[date] = make(map[string]uint64)
 		}
-		stats.Sites[date][string(line.IP)]++
+		stats.Sites[date][line.IP]++
 
 		// VISITS: Determine if this is a new "visit" based on timeout
-		if ts.Sub(stats.lastVisit[ip]) > visitTimeout {
+		if line.Timestamp.Sub(stats.lastVisit[line.IP]) > visitTimeout {
 			if _, ok := stats.Visits[date]; !ok {
 				stats.Visits[date] = make(map[string]uint64)
 			}
-			stats.Visits[date][ip]++
+			stats.Visits[date][line.IP]++
 			incVisits = true
 		}
-		stats.lastVisit[ip] = ts
+		stats.lastVisit[line.IP] = line.Timestamp
 
 		// METHOD: count hits by method
 		if _, ok := stats.Methods[date]; !ok {
 			stats.Methods[date] = make(map[string]uint64)
 		}
-		stats.Methods[date][string(line.Method)]++
+		stats.Methods[date][line.Method]++
 
 		// METHOD: count hits by response code
 		if _, ok := stats.RespCodes[date]; !ok {
@@ -238,16 +263,16 @@ func processLog(fileName string) {
 		stats.RespCodes[date][line.RespCode]++
 
 		// IPs: Reports hits, bytes, and visits by IP
-		updateHBVStats(stats.IPs, date, ip, line.Size, incVisits)
+		updateHBVStats(stats.IPs, date, line.IP, line.Size, incVisits)
 
 		// USERAGENTS: Reports hits, bytes, and visits by User-Agent
-		updateHBVStats(stats.UserAgents, date, string(line.UserAgent), line.Size, incVisits)
+		updateHBVStats(stats.UserAgents, date, line.UserAgent, line.Size, incVisits)
 
 		// URLPaths: Report hits and bytes by URLPath and Method
-		updateURLStats(stats.URLPaths, date, line.URLPath, string(line.Method), line.Size)
+		updateURLStats(stats.URLPaths, date, line.URLPath, line.Method, line.Size)
 
 		// REFERRERS: Reports hits and bytes by Referrer
-		updateReferrerStats(stats.Referrers, date, string(line.Referrer), line.Size)
+		updateReferrerStats(stats.Referrers, date, line.Referrer, line.Size)
 	}
 
 	// Report any errors from scanning

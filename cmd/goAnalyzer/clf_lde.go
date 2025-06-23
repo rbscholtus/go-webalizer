@@ -5,12 +5,18 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strconv"
 	time "time"
 	"unsafe"
 )
 
-var constLogEntrySpaceBslash = []byte(" \"")
+var (
+	constSpaceLBracket = []byte(" [")
+	constSpaceDQuote   = []byte(` "`)
+	constHttpPrefix    = []byte(" HTTP/")
+	constDQuoteSpace   = []byte(`" `)
+)
 
 // LogEntry ...
 type LogEntry struct {
@@ -32,9 +38,10 @@ type LogEntry struct {
 func (p *LogEntry) Extract(line []byte) (bool, error) {
 	p.Rest = line
 	var err error
-	var pos, posQ int
+	var pos int
 	var tmp []byte
 	var tmpUint uint64
+	var ch byte
 
 	// Take until ' ' as IP($string)
 	pos = bytes.IndexByte(p.Rest, ' ')
@@ -63,24 +70,11 @@ func (p *LogEntry) Extract(line []byte) (bool, error) {
 		return false, nil
 	}
 
-	// Take until ' ' as User(string)
-	pos = -1
-	for i, char := range p.Rest {
-		if char == ' ' {
-			pos = i
-			break
-		}
-	}
-	if pos >= 0 {
+	// Take until ' [' as User(string)
+	pos = bytes.Index(p.Rest, constSpaceLBracket)
+	if pos > 0 {
 		p.User = p.Rest[:pos]
-		p.Rest = p.Rest[pos+1:]
-	} else {
-		return false, nil
-	}
-
-	// Checks if the rest starts with '[' and pass it
-	if len(p.Rest) >= 1 && p.Rest[0] == '[' {
-		p.Rest = p.Rest[1:]
+		p.Rest = p.Rest[pos+len(constSpaceLBracket):]
 	} else {
 		return false, nil
 	}
@@ -97,45 +91,47 @@ func (p *LogEntry) Extract(line []byte) (bool, error) {
 		return false, fmt.Errorf("parsing `%s` into field Timestamp(time.Time): %s", string(tmp), err)
 	}
 
-	// Checks if the rest starts with `" \""` and pass it
-	if bytes.HasPrefix(p.Rest, constLogEntrySpaceBslash) {
-		p.Rest = p.Rest[len(constLogEntrySpaceBslash):]
+	// Checks if the rest starts with ` "` and pass it
+	if bytes.HasPrefix(p.Rest, constSpaceDQuote) {
+		p.Rest = p.Rest[len(constSpaceDQuote):]
 	} else {
 		return false, nil
 	}
 
-	// Take until ' ' as Method($string)
-	pos = -1
-	for i, char := range p.Rest {
-		if char == ' ' {
-			pos = i
+	// Take [A-Z]{3,10} delimited by ' ' as Method(string)
+	for pos, ch = range p.Rest {
+		if ch == ' ' {
+			if pos >= 3 {
+				p.Method = string(p.Rest[:pos])
+				p.Rest = p.Rest[pos+1:]
+			} else {
+				p.Method = "-"
+			}
+			break
+		} else if pos >= 10 {
+			p.Method = "-"
+			break
+		} else if ch < 'A' || ch > 'Z' {
+			p.Method = "-"
 			break
 		}
 	}
-	if pos >= 0 {
-		tmp = p.Rest[:pos]
-		p.Rest = p.Rest[pos+1:]
-	} else {
-		return false, nil
-	}
-	if p.Method, err = p.unmarshalMethod(tmp); err != nil {
-		return false, fmt.Errorf("parsing `%s` into field Method(string): %s", string(tmp), err)
-	}
 
-	// Take until ' ' or '"' as URLPath($string)
-	posQ = bytes.IndexByte(p.Rest, '"')
-	pos = bytes.IndexByte(p.Rest, ' ')
-	if pos > 0 && pos < posQ {
+	// Take until ' HTTP/' or '" ' as URLPath($string)
+	pos = bytes.Index(p.Rest, constHttpPrefix)
+	if pos > 0 {
 		tmp = p.Rest[:pos]
 		p.Rest = p.Rest[pos+1:]
-	} else if posQ > 0 && posQ < pos {
-		tmp = p.Rest[:posQ]
-		p.Rest = p.Rest[posQ:]
+	} else if pos = bytes.Index(p.Rest, constDQuoteSpace); pos > 0 {
+		tmp = p.Rest[:pos]
+		p.Rest = p.Rest[pos:]
 	} else {
 		return false, nil
 	}
 	if p.URLPath, err = p.unmarshalURLPath(tmp); err != nil {
-		return false, fmt.Errorf("parsing `%s` into field URLPath(string): %s", string(tmp), err)
+		// pass with Unescape error
+		fmt.Fprintf(os.Stderr, "Warning: parsing `%s` into field URLPath(string): %s\n", string(tmp), err)
+		// return false, fmt.Errorf("parsing `%s` into field URLPath(string): %s", string(tmp), err)
 	}
 
 	// Take until '"' as Version(string)
@@ -210,12 +206,14 @@ func (p *LogEntry) Extract(line []byte) (bool, error) {
 		return false, nil
 	}
 	if p.Referrer, err = p.unmarshalReferrer(tmp); err != nil {
-		return false, fmt.Errorf("parsing `%s` into field Referrer(string): %s", string(tmp), err)
+		// pass with Unescape error
+		fmt.Fprintf(os.Stderr, "Warning: parsing `%s` into field Referrer(string): %s\n", string(tmp), err)
+		// return false, fmt.Errorf("parsing `%s` into field Referrer(string): %s", string(tmp), err)
 	}
 
 	// Checks if the rest starts with `" \""` and pass it
-	if bytes.HasPrefix(p.Rest, constLogEntrySpaceBslash) {
-		p.Rest = p.Rest[len(constLogEntrySpaceBslash):]
+	if bytes.HasPrefix(p.Rest, constSpaceDQuote) {
+		p.Rest = p.Rest[len(constSpaceDQuote):]
 	} else {
 		return false, nil
 	}

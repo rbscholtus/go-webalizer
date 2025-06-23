@@ -5,8 +5,8 @@ type time.Time from "time";
 LogEntry =
   IP($string) ' '
   Identity(string) ~' '
-  User(string) ~' '
-  ^'[' Timestamp(time.Time) ']'
+  User(string) ~' ['
+  Timestamp(time.Time) ']'
   ^" \"" Method($string) ~' ' URLPath($string) ' ' Version(string) '"'
   ^' ' RespCode(uint16) ~' '
   Size($uint64) ?~' '

@@ -36,11 +36,6 @@ func (p *LogEntry) unmarshalTimestamp(value []byte) (time.Time, error) {
 	return time.Parse(dateFormat, string(value))
 }
 
-// unmarshalMethod converts a Method string from a log entry.
-func (p *LogEntry) unmarshalMethod(value []byte) (string, error) {
-	return string(value), nil
-}
-
 // unmarshalURLPath unescapes a URL path from a log entry.
 func (p *LogEntry) unmarshalURLPath(value []byte) (string, error) {
 	unescapedPath, err := url.PathUnescape(string(value))
@@ -181,7 +176,7 @@ func processLog(fileName string) {
 	// Open the access log file
 	file, err := os.Open(fileName)
 	if err != nil {
-		fmt.Printf("Error opening file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
 		return
 	}
 	defer file.Close()
@@ -191,6 +186,7 @@ func processLog(fileName string) {
 	line := LogEntry{}
 
 	fileExtRE := regexp.MustCompile(fileExts)
+	var dumper = godump.Dumper{Theme: godump.DefaultTheme}
 
 	// Scan the log line-by-line
 	scanner := bufio.NewScanner(file)
@@ -199,8 +195,8 @@ func processLog(fileName string) {
 		lineNr++
 		ok, err := line.Extract(scanner.Bytes())
 		if !ok {
-			fmt.Println("Invalid line", lineNr, ":", err)
-			// godump.Dump(line)
+			fmt.Fprintln(os.Stderr, "Invalid line", lineNr, ":", err)
+			dumper.Fprintln(os.Stderr, line)
 			continue
 		}
 
@@ -233,7 +229,7 @@ func processLog(fileName string) {
 		// BYTES: Track total bytes sent (if numeric)
 		stats.Bytes[date] += line.Size
 
-		// SITES: Count visits by IP and track last access time
+		// SITES: Count hits by IP
 		if _, ok := stats.Sites[date]; !ok {
 			stats.Sites[date] = make(map[string]uint64)
 		}
@@ -247,6 +243,7 @@ func processLog(fileName string) {
 			stats.Visits[date][line.IP]++
 			incVisits = true
 		}
+		// Track last hit time
 		stats.lastVisit[line.IP] = line.Timestamp
 
 		// METHOD: count hits by method
@@ -280,8 +277,8 @@ func processLog(fileName string) {
 	}
 
 	// Print final statistics
-	d := godump.Dumper{HidePrivateFields: true}
-	d.Println(stats)
+	finalDumper := godump.Dumper{HidePrivateFields: true}
+	finalDumper.Println(stats)
 }
 
 // main defines and runs the CLI using urfave/cli.

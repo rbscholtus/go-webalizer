@@ -1,18 +1,14 @@
-// Package main provides a CLI application to process Apache log files.
-package main
+package parser
 
 import (
 	"bufio"
-	"context"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/urfave/cli/v3"
 	"github.com/yassinebenaid/godump"
 )
 
@@ -138,19 +134,19 @@ func updateReferrerStats(referrers map[string]map[string]*HB, date string, refer
 }
 
 type LogStats struct {
-	Hits       map[string]uint64 // Key: "YYYY-MM-DD HH", "YYYY-MM-DD", "YYYY-MM"
-	Files      map[string]uint64
-	Pages      map[string]uint64
-	Bytes      map[string]uint64
-	Visits     map[string]map[string]uint64         // Key: "YYYY-MM-DD HH", "YYYY-MM-DD", "YYYY-MM", value: map[IP]uint64
-	Sites      map[string]map[string]uint64         // Key: "YYYY-MM-DD HH", "YYYY-MM-DD", "YYYY-MM", value: map[IP]uint64
-	Methods    map[string]map[string]uint64         // Key: "YYYY-MM-DD", "YYYY-MM-DD", "YYYY-MM", value: map[Method]uint64
-	RespCodes  map[string]map[uint16]uint64         // Key: "YYYY-MM-DD", "YYYY-MM-DD", "YYYY-MM", value: map[Response Code]uint64
-	IPs        map[string]map[string]*HBV           // Key: "YYYY-MM-DD HH", value: map[IP]*HBV
-	UserAgents map[string]map[string]*HBV           // Key: "YYYY-MM-DD HH", value: map[UserAgent]struct { Hits uint64; Visits uint64; Bytes uint64 }
-	URLPaths   map[string]map[string]map[string]*HB // Key: "YYYY-MM-DD HH", value: map[URLPath], value: map[Method]struct { Hits uint64; Bytes uint64 }
-	Referrers  map[string]map[string]*HB            // Key: "YYYY-MM-DD HH", value: map[Referrer]struct { Hits uint64; Bytes uint64 }
-	lastVisit  map[string]time.Time
+	Hits       map[string]uint64                    // Key: "YYYY-MM-DD"
+	Files      map[string]uint64                    //
+	Pages      map[string]uint64                    //
+	Bytes      map[string]uint64                    //
+	Visits     map[string]map[string]uint64         // Key: "YYYY-MM-DD", value: map[IP]uint64
+	Sites      map[string]map[string]uint64         // Key: "YYYY-MM-DD", value: map[IP]uint64
+	Methods    map[string]map[string]uint64         // Key: "YYYY-MM-DD", value: map[Method]uint64
+	RespCodes  map[string]map[uint16]uint64         // Key: "YYYY-MM-DD", value: map[Response Code]uint64
+	IPs        map[string]map[string]*HBV           // Key: value: map[IP]*HBV
+	UserAgents map[string]map[string]*HBV           // Key: value: map[UserAgent]*HBV
+	URLPaths   map[string]map[string]map[string]*HB // Key: value: map[URLPath], value: map[Method]*HB
+	Referrers  map[string]map[string]*HB            // Key: value: map[Referrer]*HB
+	lastVisit  map[string]time.Time                 // Key: "YYYY-MM-DD"
 }
 
 func NewLogStats() *LogStats {
@@ -172,7 +168,7 @@ func NewLogStats() *LogStats {
 }
 
 // processLog parses the log file line-by-line and accumulates stats.
-func processLog(fileName string) {
+func ProcessLog(fileName string) {
 	// Open the access log file
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -279,25 +275,4 @@ func processLog(fileName string) {
 	// Print final statistics
 	finalDumper := godump.Dumper{HidePrivateFields: true}
 	finalDumper.Println(stats)
-}
-
-// main defines and runs the CLI using urfave/cli.
-func main() {
-	cmd := &cli.Command{
-		Name:  "file-cli",
-		Usage: "A simple CLI that takes a file name as an argument",
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if cmd.NArg() != 1 {
-				return fmt.Errorf("please provide exactly one file name")
-			}
-			fileName := cmd.Args().Get(0)
-			processLog(fileName)
-			return nil
-		},
-	}
-
-	// Run the CLI command
-	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
-	}
 }

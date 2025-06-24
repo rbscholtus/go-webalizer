@@ -26,3 +26,4 @@ vendor/
 *.go.bak
 /goAnalyzer
 /out.txt
+/logs/

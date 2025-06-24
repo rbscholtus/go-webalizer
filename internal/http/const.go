@@ -1,7 +1,7 @@
 // Package main provides a CLI application to process Apache log files.
-package main
+package http
 
-var httpMethods = map[string]string{
+var HttpMethods = map[string]string{
 	"GET":        "Retrieve a resource",
 	"POST":       "Create a new resource",
 	"PUT":        "Update an existing resource",
@@ -24,7 +24,7 @@ var httpMethods = map[string]string{
 	"PROPPATCH":  "Update properties of a resource",
 }
 
-var httpStatusCodes = map[int]string{
+var HttpStatusCodes = map[int]string{
 	// 1xx - Informational
 	100: "Continue",
 	101: "Switching Protocols",

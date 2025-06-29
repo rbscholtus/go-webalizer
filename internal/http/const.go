@@ -113,3 +113,78 @@ var HttpStatusCodes = map[int]string{
 	524: "A Timeout Occurred",
 	598: "Network Read Timeout Error",
 }
+
+var ContentTypes = map[string]string{
+	// Text Content Types
+	"text/plain":      "Plain text",
+	"text/html":       "HTML documents",
+	"text/css":        "CSS stylesheets",
+	"text/javascript": "JavaScript files",
+	"text/xml":        "XML documents",
+	"text/markdown":   "Markdown documents",
+
+	// Image Content Types
+	"image/jpeg":               "JPEG images",
+	"image/png":                "PNG images",
+	"image/gif":                "GIF images",
+	"image/svg+xml":            "SVG images",
+	"image/bmp":                "BMP images",
+	"image/tiff":               "TIFF images",
+	"image/webp":               "WebP images",
+	"image/x-icon":             "ICO images",
+	"image/vnd.microsoft.icon": "ICO images",
+	"image/ico":                "ICO images",
+	"image/icon":               "ICO images",
+
+	// Data Interchange Content Types
+	"application/javascript": "JavaScript files",
+	"application/json":       "JSON data",
+	"application/xml":        "XML data",
+	"application/x-yaml":     "YAML data",
+	"application/x-ndjson":   "Newline-delimited JSON",
+
+	// Binary Content Types
+	"application/octet-stream":     "Binary data (often used for file downloads)",
+	"application/pdf":              "PDF documents",
+	"application/zip":              "ZIP archives",
+	"application/gzip":             "GZIP archives",
+	"application/x-tar":            "TAR archives",
+	"application/x-rar-compressed": "RAR archives",
+	"application/x-7z-compressed":  "7-Zip archives",
+
+	// Audio Content Types
+	"audio/mpeg": "MP3 audio files",
+	"audio/wav":  "WAV audio files",
+	"audio/aac":  "AAC audio files",
+	"audio/ogg":  "OGG audio files",
+	"audio/flac": "FLAC audio files",
+
+	// Video Content Types
+	"video/mp4":       "MP4 video files",
+	"video/webm":      "WebM video files",
+	"video/ogg":       "OGG video files",
+	"video/quicktime": "QuickTime video files",
+	"video/x-msvideo": "AVI video files",
+
+	// Font Content Types
+	"font/ttf":   "TrueType fonts",
+	"font/woff":  "Web Open Font Format (WOFF) fonts",
+	"font/woff2": "Web Open Font Format 2 (WOFF2) fonts",
+	"font/otf":   "OpenType fonts",
+
+	// Form and Multipart Content Types
+	"application/x-www-form-urlencoded": "Form data (often used for HTML form submissions)",
+	"multipart/form-data":               "Form data with file uploads",
+	"multipart/byteranges":              "Multipart responses with byte ranges",
+
+	// Other Content Types
+	"application/atom+xml":          "Atom feeds",
+	"application/rss+xml":           "RSS feeds",
+	"application/x-shockwave-flash": "Flash files",
+	"application/msword":            "Microsoft Word documents",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Microsoft Word (.docx) documents",
+	"application/vnd.ms-excel": "Microsoft Excel documents",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         "Microsoft Excel (.xlsx) documents",
+	"application/vnd.ms-powerpoint":                                             "Microsoft PowerPoint documents",
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation": "Microsoft PowerPoint (.pptx) documents",
+}

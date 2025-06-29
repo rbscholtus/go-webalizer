@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/rbscholtus/go-webalizer/internal/logstats"
 )
 
 // the datetime format of the log timestamp
@@ -62,111 +64,8 @@ func (p *LogEntry) unmarshalUserAgent(value []byte) (string, error) {
 	return string(value), nil
 }
 
-// Stats holds aggregated metrics parsed from web server log files.
-type HB struct {
-	Hits  uint64
-	Bytes uint64
-}
-
-func (h *HB) AddTraffic(bytes uint64) {
-	h.Hits++
-	h.Bytes += bytes
-}
-
-type HBV struct {
-	Hits   uint64
-	Bytes  uint64
-	Visits uint64
-}
-
-func (h *HBV) AddTraffic(bytes uint64, isNewVisit bool) {
-	h.Hits++
-	h.Bytes += bytes
-	if isNewVisit {
-		h.Visits++
-	}
-}
-func getOrCreateHBV(IPs map[string]map[string]*HBV, date string, ip string) *HBV {
-	if IPs[date] == nil {
-		IPs[date] = make(map[string]*HBV)
-	}
-	if _, ok := IPs[date][ip]; !ok {
-		IPs[date][ip] = &HBV{}
-	}
-	return IPs[date][ip]
-}
-
-func updateHBVStats(data map[string]map[string]*HBV, date string, field string, bytes uint64, isNewVisit bool) {
-	getOrCreateHBV(data, date, field).AddTraffic(bytes, isNewVisit)
-}
-
-func getOrCreateURLHB(URLs map[string]map[string]map[string]*HB, date string, ip string, method string) *HB {
-	if URLs[date] == nil {
-		URLs[date] = make(map[string]map[string]*HB)
-	}
-	if _, ok := URLs[date][ip]; !ok {
-		URLs[date][ip] = make(map[string]*HB)
-	}
-	if _, ok := URLs[date][ip][method]; !ok {
-		URLs[date][ip][method] = &HB{}
-	}
-	return URLs[date][ip][method]
-}
-
-func updateURLStats(URLs map[string]map[string]map[string]*HB, date string, ip string, method string, bytes uint64) {
-	getOrCreateURLHB(URLs, date, ip, method).AddTraffic(bytes)
-}
-
-func getOrCreateRefHB(referrers map[string]map[string]*HB, date string, referrer string) *HB {
-	if referrers[date] == nil {
-		referrers[date] = make(map[string]*HB)
-	}
-	if _, ok := referrers[date][referrer]; !ok {
-		referrers[date][referrer] = &HB{}
-	}
-	return referrers[date][referrer]
-}
-
-func updateReferrerStats(referrers map[string]map[string]*HB, date string, referrer string, bytes uint64) {
-	getOrCreateRefHB(referrers, date, referrer).AddTraffic(bytes)
-}
-
-type LogStats struct {
-	Hits       map[string]uint64                    // Key: "YYYY-MM-DD"
-	Files      map[string]uint64                    //
-	Pages      map[string]uint64                    //
-	Bytes      map[string]uint64                    //
-	Visits     map[string]map[string]uint64         // Key: "YYYY-MM-DD", value: map[IP]uint64
-	Sites      map[string]map[string]uint64         // Key: "YYYY-MM-DD", value: map[IP]uint64
-	Methods    map[string]map[string]uint64         // Key: "YYYY-MM-DD", value: map[Method]uint64
-	RespCodes  map[string]map[uint16]uint64         // Key: "YYYY-MM-DD", value: map[Response Code]uint64
-	IPs        map[string]map[string]*HBV           // Key: value: map[IP]*HBV
-	UserAgents map[string]map[string]*HBV           // Key: value: map[UserAgent]*HBV
-	URLPaths   map[string]map[string]map[string]*HB // Key: value: map[URLPath], value: map[Method]*HB
-	Referrers  map[string]map[string]*HB            // Key: value: map[Referrer]*HB
-	lastVisit  map[string]time.Time                 // Key: "YYYY-MM-DD"
-}
-
-func NewLogStats() *LogStats {
-	return &LogStats{
-		Hits:       make(map[string]uint64),
-		Files:      make(map[string]uint64),
-		Pages:      make(map[string]uint64),
-		Bytes:      make(map[string]uint64),
-		Visits:     make(map[string]map[string]uint64),
-		Sites:      make(map[string]map[string]uint64),
-		Methods:    make(map[string]map[string]uint64),
-		RespCodes:  make(map[string]map[uint16]uint64),
-		IPs:        make(map[string]map[string]*HBV),
-		UserAgents: make(map[string]map[string]*HBV),
-		URLPaths:   make(map[string]map[string]map[string]*HB),
-		Referrers:  make(map[string]map[string]*HB),
-		lastVisit:  make(map[string]time.Time),
-	}
-}
-
 // processLog parses the log file line-by-line and accumulates stats.
-func ProcessLog(fileName string) (*LogStats, error) {
+func ProcessLog(fileName string) (*logstats.LogStats, error) {
 	// Open the access log file
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -176,7 +75,7 @@ func ProcessLog(fileName string) (*LogStats, error) {
 	defer file.Close()
 
 	lineNr := 0
-	stats := NewLogStats()
+	stats := logstats.NewLogStats()
 	line := LogEntry{}
 
 	fileExtRE := regexp.MustCompile(fileExts)
@@ -226,22 +125,26 @@ func ProcessLog(fileName string) (*LogStats, error) {
 		// BYTES: Track total bytes sent (if numeric)
 		stats.Bytes[date] += line.Size
 
-		// SITES: Count hits by IP
-		if _, ok := stats.Sites[date]; !ok {
-			stats.Sites[date] = make(map[string]uint64)
-		}
-		stats.Sites[date][line.IP]++
-
 		// VISITS: Determine if this is a new "visit" based on timeout
-		if line.Timestamp.Sub(stats.lastVisit[line.IP]) > visitTimeout {
+		if line.Timestamp.Sub(stats.LastVisit[line.IP]) > visitTimeout {
 			if _, ok := stats.Visits[date]; !ok {
 				stats.Visits[date] = make(map[string]uint64)
 			}
 			stats.Visits[date][line.IP]++
 			incVisits = true
 		}
-		// Track last hit time
-		stats.lastVisit[line.IP] = line.Timestamp
+
+		// Track first and last hit time
+		if _, ok := stats.FirstVisit[line.IP]; !ok {
+			stats.FirstVisit[line.IP] = line.Timestamp
+		}
+		stats.LastVisit[line.IP] = line.Timestamp
+
+		// SITES: Count hits by IP
+		if _, ok := stats.Sites[date]; !ok {
+			stats.Sites[date] = make(map[string]uint64)
+		}
+		stats.Sites[date][line.IP]++
 
 		// METHOD: count hits by method
 		if _, ok := stats.Methods[date]; !ok {
@@ -256,16 +159,16 @@ func ProcessLog(fileName string) (*LogStats, error) {
 		stats.RespCodes[date][line.RespCode]++
 
 		// IPs: Reports hits, bytes, and visits by IP
-		updateHBVStats(stats.IPs, date, line.IP, line.Size, incVisits)
+		stats.UpdateIPStats(date, line.IP, line.Size, incVisits)
 
 		// USERAGENTS: Reports hits, bytes, and visits by User-Agent
-		updateHBVStats(stats.UserAgents, date, line.UserAgent, line.Size, incVisits)
+		stats.UpdateUserAgentStats(date, line.UserAgent, line.Size, incVisits)
 
 		// URLPaths: Report hits and bytes by URLPath and Method
-		updateURLStats(stats.URLPaths, date, line.URLPath, line.Method, line.Size)
+		stats.UpdateURLStats(date, line.URLPath, line.Method, line.Size)
 
 		// REFERRERS: Reports hits and bytes by Referrer
-		updateReferrerStats(stats.Referrers, date, line.Referrer, line.Size)
+		stats.UpdateReferrerStats(date, line.Referrer, line.Size)
 	}
 
 	// Report any errors from scanning

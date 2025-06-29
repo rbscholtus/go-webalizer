@@ -27,3 +27,4 @@ vendor/
 /goAnalyzer
 /out.txt
 /logs/
+*.html

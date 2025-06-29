@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-
-	"github.com/yassinebenaid/godump"
 )
 
 // the datetime format of the log timestamp
@@ -168,12 +166,12 @@ func NewLogStats() *LogStats {
 }
 
 // processLog parses the log file line-by-line and accumulates stats.
-func ProcessLog(fileName string) {
+func ProcessLog(fileName string) (*LogStats, error) {
 	// Open the access log file
 	file, err := os.Open(fileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
-		return
+		return nil, err
 	}
 	defer file.Close()
 
@@ -182,7 +180,7 @@ func ProcessLog(fileName string) {
 	line := LogEntry{}
 
 	fileExtRE := regexp.MustCompile(fileExts)
-	var dumper = godump.Dumper{Theme: godump.DefaultTheme}
+	// var dumper = godump.Dumper{Theme: godump.DefaultTheme}
 
 	// Scan the log line-by-line
 	scanner := bufio.NewScanner(file)
@@ -192,9 +190,12 @@ func ProcessLog(fileName string) {
 		ok, err := line.Extract(scanner.Bytes())
 		if !ok {
 			fmt.Fprintln(os.Stderr, "Invalid line", lineNr, ":", err)
-			dumper.Fprintln(os.Stderr, line)
+			// dumper.Fprintln(os.Stderr, line)
 			continue
 		}
+
+		// dumper.Fprintln(os.Stderr, line)
+		// break
 
 		// If Visits was incremented for this log line
 		incVisits := false
@@ -269,10 +270,9 @@ func ProcessLog(fileName string) {
 
 	// Report any errors from scanning
 	if err := scanner.Err(); err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
+		msg := fmt.Errorf("error reading file: %v", err)
+		return nil, msg
 	}
 
-	// Print final statistics
-	finalDumper := godump.Dumper{HidePrivateFields: true}
-	finalDumper.Println(stats)
+	return stats, nil
 }

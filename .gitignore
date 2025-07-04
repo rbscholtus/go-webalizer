@@ -28,3 +28,6 @@ vendor/
 /out.txt
 /logs/
 *.html
+/*.conf
+/*.mmdb
+/*.js

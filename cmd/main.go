@@ -20,12 +20,23 @@ func processFile(fileName string) error {
 		return err
 	}
 
-	// Monthy aggregates
-	aggr := stats.AggregatesByMonth()
+	if err := stats.LookupCountries(); err != nil {
+		return err
+	}
+
+	// Aggregates
+	months := stats.AggregatesByMonth()
+	recent := stats.RecentAggregates()
+	methods, responses := stats.MethRespAggregates()
+	countryAggregates := stats.CountryAggregates()
 
 	// Render and save charts
 	page := components.NewPage()
-	page.AddCharts(charts.MonthlyBarCharts(aggr))
+	page.AddCharts(charts.MonthlyBarCharts(months))
+	page.AddCharts(charts.MonthlyBarCharts(recent))
+	page.AddCharts(charts.MethodPieChart(methods))
+	page.AddCharts(charts.ResponsesPieChart(responses))
+	page.AddCharts(charts.WorldMap(countryAggregates))
 
 	f, err := os.Create("index.html")
 	if err != nil {
@@ -43,6 +54,7 @@ func main() {
 		Usage: "A simple CLI that takes a file name as an argument",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
+				//main2()
 				return fmt.Errorf("please provide exactly one file name")
 			}
 			fileName := cmd.Args().Get(0)
